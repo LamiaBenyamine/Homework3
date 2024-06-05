@@ -1,0 +1,201 @@
+---
+title: "Tidyverse manipulation"
+author: "Lamia Benyamine"
+date: "06/04/2024"
+format: html
+editor: visual
+---
+
+# *Task 1:* Conceptual Questions
+
+1.  If your working directory is myfolder/homework/, what relative path would you specify to get the file located at myfolder/MyData.csv?
+
+> "../MyData.csv"
+
+2.  What are the major benefits of using R projects?
+
+> Keeping all the files related to a project in one spot helps when other people need to replicate the results.
+
+3.  What is git and what is github?
+
+> Git is a version control software and Github is the online hosting service for Git projects
+
+4.  What are the two main differences between a tibble and a data.frame?
+
+> A tibble is a form of a data frame, but it has features that make it easier to use. For instance, when printing, a data frame shows the entire data while a tibble only shows the first 10 columns and column descriptions. Also, when subsetting the data, a tibble will return a tibble, but a data frame can sometimes return a vector or list.
+
+5.  Rewrite the following nested function call using baseR’s chaining operator: arrange(filter(select(as_tibble(iris), starts_with("Petal"), Species), Petal.Length \< 1.55), Species)
+
+> iris \|\>\
+> as_tibble() \|\>\
+> select(starts_with("Petal"), Species) \|\>\
+> filter(Petal.Length \< 1.55) \|\>\
+> arrange(Species)
+
+6.  What is meant by long format data and wide format data? Which do we generally prefer for statistical analysis?
+
+> Wide format is a pivot view where each row can have more than one observation because each column is a different variable. Whereas in the long format, each row consists of one observation and one variable in each column and this is the preferred view for data manipulation.
+
+# *Task 2:* Reading Delimited Data
+
+## Glass Data
+
+Read in the Glass data from URL
+
+```{r}
+glass_tb <- read_csv("https://www4.stat.ncsu.edu/~online/datasets/glass.data",
+                     col_names = c("Id", "RI", "Na", "Mg", "Al", "Si", "K", "Ca", "Ba", "Fe", "Type_of_glass"))
+glass_tb
+```
+
+Add the glass type description and filter on Fe \< 0.2 and Glass type
+
+```{r}
+glass_tb |>
+  mutate(Type_of_glass = ifelse(glass_tb$Type_of_glass == 1, "building_windows_float_processed", 
+                        ifelse(glass_tb$Type_of_glass == 2, "building_windows_non_float_processed", 
+                        ifelse(glass_tb$Type_of_glass == 3,"vehicle_windows_float_processed", 
+                        ifelse(glass_tb$Type_of_glass == 4, "vehicle_windows_non_float_processed", 
+                        ifelse(glass_tb$Type_of_glass == 5, "containers", 
+                        ifelse(glass_tb$Type_of_glass == 6,"tableware", 
+                        ifelse(glass_tb$Type_of_glass == 7, "headlamps","")))))))) |>
+  filter(Fe < 0.2, Type_of_glass %in% c("tableware", "headlamps"))
+```
+
+## Yeast Data
+
+Read in the Yeast data from URL
+
+```{r}
+yeast_tb <- read_delim("https://www4.stat.ncsu.edu/~online/datasets/yeast.data", 
+           delim = "  ",
+           col_names = c("seq_name", "mcg", "gvh", "alm", "mit", "erl", "pox", "vac", "nuc", "class"))
+yeast_tb
+```
+
+Manipulate the data by removing some columns and adding summary columns
+
+```{r}
+yeast_tb |>
+  select(-1, -9) |>
+  group_by(class) |>
+   mutate(across(where(is.numeric), list(mean = mean, median=median), .names = "{.col}_{.fn}"))
+```
+
+# *Task 3:* Combining Excel and Delimited Data
+
+## White Wine
+
+Import white wine data
+
+```{r}
+white_tb <- readxl::read_excel("white-wine.xlsx", sheet = 1)
+white_tb
+```
+
+Read in second sheet of wine data to get column names
+
+```{r}
+wine_names <- readxl::read_excel("white-wine.xlsx", sheet = 2)
+colnames(white_tb) <- wine_names[[1]]
+
+#add a new variable for type of wine
+white_tb$type = "white"
+```
+
+## Red Wine
+
+Import red wine data and follow the same maniupulations done for the white wine
+
+```{r}
+red_tb <- readr::read_delim("red-wine.csv",
+                            delim = ";" ,
+                            skip = 1,
+                            col_names = wine_names[[1]])
+red_tb$type = "red"
+red_tb
+```
+
+## Combine Data
+
+```{r}
+wine_tb <- dplyr::bind_rows(white_tb, red_tb)
+```
+
+Filter, sort, and add summarized columns to the data
+
+```{r}
+wine_tb |>
+  filter(quality > 6.5, alcohol < 132) |>
+  arrange(desc(quality)) |>
+  select(contains("acid"), "alcohol", "type", "quality") |>
+  group_by(quality) |>
+   mutate(mean_alcohol = mean(alcohol), sd_alcohol = sd(alcohol))
+```
+
+# *Task 4:* Database Practice
+
+Connect to database and view tables
+
+```{r}
+library(DBI)
+lah <-dbConnect(RSQLite::SQLite(), "lahman.db")
+dbListTables(lah)
+```
+
+Return the 2015 data from Teams using dplyr and SQL
+
+```{r}
+#dplyr
+library(dplyr)
+tbl(lah, "Teams") |>
+  filter(yearID == 2015) |>
+  show_query()
+
+#SQL
+tbl(lah, sql(
+  "SELECT `Teams`.*
+    FROM `Teams`
+    WHERE (`yearID` = 2015.0)")
+)
+```
+
+Return all players in the hall of fame
+
+```{r}
+tbl(lah, "HallofFame") |>
+  filter(inducted == "Y") |>
+  select("playerID", "yearID", "category")
+```
+
+Combine the Hall of fame table with People to get full names
+
+```{r}
+hof <- left_join(tbl(lah, "HallofFame") |> filter(inducted == "Y"), 
+          tbl(lah, "People"),
+          by = join_by(playerID)) |>
+  collect() |>
+  select(playerID, yearID, category, nameFirst, nameLast)
+hof
+```
+
+Create summary statistics for all managers
+
+```{r}
+mgrs <- tbl(lah, "Managers") |>
+  select(playerID, G, W, L) |>
+  group_by(playerID) |>
+  summarize(G_managed = sum(G, na.rm = TRUE),
+  Total_W = sum(W, na.rm = TRUE),
+  Total_L = sum(L, na.rm = TRUE)) |>
+  collect() |>
+  mutate(w_L_percent = round((Total_W / G_managed) * 100,2)) |>
+  arrange(desc(w_L_percent))
+mgrs
+```
+
+Return managers of teams that are in the hall of fame
+
+```{r}
+inner_join(hof, mgrs)
+```

@@ -201,3 +201,9 @@ Return managers of teams that are in the hall of fame
 ```{r}
 inner_join(hof, mgrs)
 ```
+
+Disconnect from database
+
+```{r}
+dbDisconnect(lah)
+```

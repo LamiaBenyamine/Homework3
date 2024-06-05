@@ -43,6 +43,7 @@ editor: visual
 Read in the Glass data from URL
 
 ```{r}
+library(readr)
 glass_tb <- read_csv("https://www4.stat.ncsu.edu/~online/datasets/glass.data",
                      col_names = c("Id", "RI", "Na", "Mg", "Al", "Si", "K", "Ca", "Ba", "Fe", "Type_of_glass"))
 glass_tb
@@ -50,15 +51,17 @@ glass_tb
 
 Add the glass type description and filter on Fe \< 0.2 and Glass type
 
-```{r}
+```{r glass_type}
+library(dplyr)
 glass_tb |>
   mutate(Type_of_glass = ifelse(glass_tb$Type_of_glass == 1, "building_windows_float_processed", 
-                        ifelse(glass_tb$Type_of_glass == 2, "building_windows_non_float_processed", 
-                        ifelse(glass_tb$Type_of_glass == 3,"vehicle_windows_float_processed", 
-                        ifelse(glass_tb$Type_of_glass == 4, "vehicle_windows_non_float_processed", 
-                        ifelse(glass_tb$Type_of_glass == 5, "containers", 
-                        ifelse(glass_tb$Type_of_glass == 6,"tableware", 
-                        ifelse(glass_tb$Type_of_glass == 7, "headlamps","")))))))) |>
+                                ifelse(glass_tb$Type_of_glass == 2, "building_windows_non_float_processed", 
+                                       ifelse(glass_tb$Type_of_glass == 3,"vehicle_windows_float_processed", 
+                                              ifelse(glass_tb$Type_of_glass == 4, "vehicle_windows_non_float_processed", 
+                                                     ifelse(glass_tb$Type_of_glass == 5, "containers", 
+                                                            ifelse(glass_tb$Type_of_glass == 6,"tableware", 
+                                                                   ifelse(glass_tb$Type_of_glass == 7, "headlamps", "")))))))) |>
+  collect() |>
   filter(Fe < 0.2, Type_of_glass %in% c("tableware", "headlamps"))
 ```
 
@@ -147,7 +150,6 @@ Return the 2015 data from Teams using dplyr and SQL
 
 ```{r}
 #dplyr
-library(dplyr)
 tbl(lah, "Teams") |>
   filter(yearID == 2015) |>
   show_query()
